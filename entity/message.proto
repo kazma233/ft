@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package entity;
+option go_package = ".;entity";
+
+enum MessageType {
+    FILE = 0;
+    TEXT = 1;
+}
+
+message FileContent {
+    bytes data = 1;
+    string sha1 = 2;
+}
+
+enum TextType {
+    FILENAME = 0;
+    SHA1 = 1;
+    CHAT = 2; 
+}
+
+message FileMessage {
+    string path = 1;
+    string name = 2;
+}
+
+message ChatMessage {
+    string content = 1;
+}
+
+message BaseMessage {
+    TextType textType = 1;
+
+    FileMessage fileMessage = 2;
+    ChatMessage chatMessage = 3;
+}
+
+message Message {
+    MessageType msgType = 1;
+    FileContent fileContent = 2;
+
+    BaseMessage baseMessage = 3;
+}

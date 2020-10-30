@@ -2,14 +2,18 @@ package cmd
 
 import (
 	"bytes"
+	"crypto/sha1"
 	"encoding/binary"
 	"fmt"
 	"ft/constants"
+	"ft/entity"
+	"io"
 	"log"
 	"net"
 	"os"
 
 	"github.com/spf13/cobra"
+	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -22,7 +26,7 @@ var sendCmd = &cobra.Command{
 	Short: "start send file server",
 	Long:  "when client connect the server, start file send.",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		fmt.Printf("%v, %v", basePath, addr)
+		log.Printf("%v, %v", basePath, addr)
 
 		listener, err := net.Listen("tcp", addr)
 		if err != nil {
@@ -62,7 +66,14 @@ func handler(connRef *net.Conn) error {
 	if fi.IsDir() {
 		log.Println("暂时不支持发送文件夹")
 	} else {
-		log.Println(sendFile(f, fi, connRef))
+		fName := f.Name()
+		log.Printf("start send file: %s", fName)
+		err = sendFile(f, fi, connRef)
+		if err != nil {
+			log.Printf("send file %s error: %v", fName, err)
+		} else {
+			log.Printf("end send file: %v", fName)
+		}
 	}
 
 	conn := *connRef
@@ -72,28 +83,76 @@ func handler(connRef *net.Conn) error {
 }
 
 func sendFile(f *os.File, fi os.FileInfo, conn *net.Conn) error {
+
+	fileNameMessage := &entity.Message{
+		MsgType: entity.MessageType_TEXT,
+		BaseMessage: &entity.BaseMessage{
+			TextType: entity.TextType_FILENAME,
+			FileMessage: &entity.FileMessage{
+				Path: f.Name(),
+				Name: fi.Name(),
+			},
+		},
+	}
+
+	// 发送文件名
+	err := sendMessage(fileNameMessage, conn)
+	if err != nil {
+		return err
+	}
+
+	// 发送文件
 	writeBytes := make([]byte, constants.DefaultByteSize)
+	_sha1 := sha1.New()
 	for {
 		n, err := f.Read(writeBytes)
 		if err != nil {
-			log.Println(err)
-			break
+			// 发送结束
+			if err == io.EOF {
+				fileSha1Message := &entity.Message{
+					MsgType: entity.MessageType_TEXT,
+					FileContent: &entity.FileContent{
+						Sha1: fmt.Sprintf("%X", _sha1.Sum(nil)),
+					},
+				}
+
+				err = sendMessage(fileSha1Message, conn)
+				if err != nil {
+					return err
+				}
+
+				break
+			}
+
+			return err
 		}
 
-		// msg := entity.Message{
-		// 	Data: writeBytes[:n],
-		// 	Name: fi.Name(),
-		// 	Size: fi.Size(),
-		// 	End:  isEOF,
-		// }
+		wb := writeBytes[:n]
+		_sha1.Write(wb)
 
-		err = sendData(writeBytes[:n], conn)
+		fileMessage := &entity.Message{
+			MsgType: entity.MessageType_FILE,
+			FileContent: &entity.FileContent{
+				Data: wb,
+				Sha1: "",
+			},
+		}
+		err = sendMessage(fileMessage, conn)
 		if err != nil {
 			return err
 		}
 	}
 
 	return sendData(constants.SLine, conn)
+}
+
+func sendMessage(msg *entity.Message, connRef *net.Conn) error {
+	data, err := proto.Marshal(msg)
+	if err != nil {
+		return nil
+	}
+
+	return sendData(data, connRef)
 }
 
 func sendData(data []byte, connRef *net.Conn) error {

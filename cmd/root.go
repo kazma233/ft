@@ -14,9 +14,9 @@ var cfgFile string
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "kt",
-	Short: "kazma tools",
-	Long:  `please use 'kt help' show usage`,
+	Use:   "ft",
+	Short: "file transport",
+	Long:  `please use 'ft help' show usage`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	//	Run: func(cmd *cobra.Command, args []string) { },
