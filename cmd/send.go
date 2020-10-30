@@ -143,7 +143,7 @@ func sendFile(f *os.File, fi os.FileInfo, conn *net.Conn) error {
 		}
 	}
 
-	return sendData(constants.SLine, conn)
+	return nil
 }
 
 func sendMessage(msg *entity.Message, connRef *net.Conn) error {
