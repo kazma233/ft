@@ -2,11 +2,11 @@ package cmd
 
 import (
 	"bytes"
-	"crypto/sha1"
 	"encoding/binary"
-	"fmt"
+	"errors"
 	"ft/constants"
 	"ft/entity"
+	"ft/utils"
 	"io"
 	"log"
 	"net"
@@ -64,7 +64,7 @@ func handler(connRef *net.Conn) error {
 	}
 
 	if fi.IsDir() {
-		log.Println("暂时不支持发送文件夹")
+		log.Println("not support yet.")
 	} else {
 		fName := f.Name()
 		log.Printf("start send file: %s", fName)
@@ -83,6 +83,15 @@ func handler(connRef *net.Conn) error {
 }
 
 func sendFile(f *os.File, fi os.FileInfo, conn *net.Conn) error {
+	sha1Val := utils.Sha1Reader(f)
+	if sha1Val == "" {
+		return errors.New("sha1 read failed")
+	}
+
+	_, err := f.Seek(0, 0)
+	if err != nil {
+		return err
+	}
 
 	fileNameMessage := &entity.Message{
 		MsgType: entity.MessageType_TEXT,
@@ -96,14 +105,13 @@ func sendFile(f *os.File, fi os.FileInfo, conn *net.Conn) error {
 	}
 
 	// 发送文件名
-	err := sendMessage(fileNameMessage, conn)
+	err = sendMessage(fileNameMessage, conn)
 	if err != nil {
 		return err
 	}
 
 	// 发送文件
 	writeBytes := make([]byte, constants.DefaultByteSize)
-	_sha1 := sha1.New()
 	for {
 		n, err := f.Read(writeBytes)
 		if err != nil {
@@ -112,7 +120,7 @@ func sendFile(f *os.File, fi os.FileInfo, conn *net.Conn) error {
 				fileSha1Message := &entity.Message{
 					MsgType: entity.MessageType_TEXT,
 					FileContent: &entity.FileContent{
-						Sha1: fmt.Sprintf("%X", _sha1.Sum(nil)),
+						Sha1: sha1Val,
 					},
 				}
 
@@ -127,13 +135,10 @@ func sendFile(f *os.File, fi os.FileInfo, conn *net.Conn) error {
 			return err
 		}
 
-		wb := writeBytes[:n]
-		_sha1.Write(wb)
-
 		fileMessage := &entity.Message{
 			MsgType: entity.MessageType_FILE,
 			FileContent: &entity.FileContent{
-				Data: wb,
+				Data: writeBytes[:n],
 				Sha1: "",
 			},
 		}

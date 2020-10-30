@@ -1,11 +1,10 @@
 package cmd
 
 import (
-	"crypto/sha1"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"ft/entity"
+	"ft/utils"
 	"io"
 	"log"
 	"net"
@@ -62,10 +61,9 @@ var recvCmd = &cobra.Command{
 			}
 
 			fc := dataMsg.GetFileContent()
-			sha1 := fc.GetSha1()
-			if sha1 != "" {
-				checked := checkSha1(fp, sha1)
-				if !checked {
+			sha1Val := fc.GetSha1()
+			if sha1Val != "" {
+				if utils.Sha1File(fName) != sha1Val {
 					return errors.New("check sha1 bad")
 				}
 				break
@@ -114,35 +112,4 @@ func readData(connRef *net.Conn) ([]byte, error) {
 	n, err := io.ReadFull(conn, data)
 
 	return data[:n], err
-}
-
-func checkSha1(path, sha1Str string) bool {
-	f, err := os.OpenFile(path, os.O_RDONLY, 0755)
-	if err != nil {
-		log.Printf("open file fiald: %v", err)
-		return false
-	}
-
-	_sha1 := sha1.New()
-	data := make([]byte, 10240)
-	for {
-		n, err := f.Read(data)
-
-		if io.EOF == err {
-			break
-		}
-
-		if err != nil {
-			log.Printf("read file fiald: %v", err)
-			return false
-		}
-
-		_sha1.Write(data[:n])
-	}
-
-	originSha1Str := fmt.Sprintf("%X", _sha1.Sum(nil))
-
-	log.Printf("origin sha1 is: %s, check sha1 is: %s", sha1Str, originSha1Str)
-
-	return originSha1Str == sha1Str
 }
